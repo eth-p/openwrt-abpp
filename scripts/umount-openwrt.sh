@@ -1,0 +1,40 @@
+#!/bin/bash
+# -----------------------------------------------------------------------------
+# OpenWRT A/B Partition Project
+# Copyright (C) 2024 eth-p
+# https://github.com/eth-p/openwrt-abpp
+# -----------------------------------------------------------------------------
+set -euo pipefail
+
+MOUNT="${1:-}"
+
+# Check for correct command usage.
+if [ -z "$MOUNT" ]; then
+    echo "usage: $0 [mountpoint]" 1>&2
+    exit 10
+fi
+
+# Find the loopback block device used.
+LO_DEVICE="$(awk -v m="$MOUNT/overlay" '$2==m{print $1}' /proc/mounts)"
+
+# Unmount the overlay.
+umount "$MOUNT" || true
+
+# Unmount the data filesystem.
+umount "$MOUNT/overlay" || true
+if [ -n "$LO_DEVICE" ]; then
+    echo "$LO_DEVICE" | xargs losetup -d || true
+fi
+
+# Unmount the ROM filesystem.
+umount "$MOUNT/rom" || true
+umount "$MOUNT" || true
+
+# Delete the mountpoint.
+rmdir "$MOUNT" || true
+
+# Exit with an error if everything isn't cleaned up.
+if [ -d "$MOUNT" ]; then
+    exit 1
+fi
+
