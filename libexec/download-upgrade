@@ -1,0 +1,112 @@
+#!/bin/ash
+# -----------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# https://github.com/eth-p/openwrt-abpp
+# -----------------------------------------------------------------------------
+# Executable utility script to download an OpenWrt release.
+#
+# Usage:
+#     download-upgrade [version] [target_dir]
+#
+# -----------------------------------------------------------------------------
+# Depends on packages:
+#  * wget (built-in)
+#  * usign (built-in)
+# -----------------------------------------------------------------------------
+set -euo pipefail
+SCRIPTS="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+
+VERSION="${1:-}"
+OUTDIR="${2:-}"
+
+# Check for correct command usage.
+if [ -z "$VERSION" ] || [ -z "$OUTDIR" ]; then
+    echo "usage: $0 [version] [target_dir]" 1>&2
+    exit 10
+fi
+
+# Determine the download URLs.
+BOARD="$("$SCRIPTS/libexec/release-info" OPENWRT_BOARD)"
+ARCH="$("$SCRIPTS/libexec/release-info" OPENWRT_ARCH | sed 's/_/-/g')"
+
+DOWNLOAD_URL_BASE="https://downloads.openwrt.org/releases/${VERSION}/targets/${BOARD}/"
+DOWNLOAD_ROOT_URL="${DOWNLOAD_URL_BASE}/openwrt-${VERSION}-${ARCH}-generic-squashfs-rootfs.img.gz"
+DOWNLOAD_KERNEL_URL="${DOWNLOAD_URL_BASE}/openwrt-${VERSION}-${ARCH}-generic-kernel.bin"
+DOWNLOAD_CHECKSUM_URL="${DOWNLOAD_URL_BASE}/sha256sums"
+DOWNLOAD_CHECKSUM_SIG_URL="${DOWNLOAD_URL_BASE}/sha256sums.sig"
+DOWNLOAD_URL_BASE="https://downloads.openwrt.org/releases/${VERSION}/targets/${BOARD}/"
+
+# Create a download folder.
+temp="$(mktemp -d)"
+trap 'rm -rf "$temp"' EXIT
+
+# Download the checksums.
+echo "Downloading checksums..." 1>&2
+if ! wget -q -P "$temp" \
+    "$DOWNLOAD_CHECKSUM_URL" \
+    "$DOWNLOAD_CHECKSUM_SIG_URL"
+then
+    echo "Failed to download checksums." 1>&2
+    echo "download failed"
+    exit 2
+fi
+
+# Verify the signature of the checksums.
+KEYS_DIR="/etc/opkg/keys"
+
+echo "Verifying checksum signatures..." 1>&2
+if [ "${REALLY_BAD_IDEA:-}" != "iknow" ]; then
+    if ! usign -q -V -m "$temp/sha256sums" -P "$KEYS_DIR"; then
+        echo "Checksum signature check failed!" 1>&2
+        echo "" 1>&2
+        echo "If you REALLY think you want to proceed, set the" 1>&2
+        echo "REALLY_BAD_IDEA='iknow' environment variable and try again." 1>&2
+        echo "signature check failed"
+        exit 3
+    fi
+fi
+
+# Filter the checksums to only include the root filesystem image.
+grep '^[0-9a-f]\{1,\} \*openwrt-.*' \
+    "$temp/sha256sums" \
+    | grep 'kernel\|squashfs-rootfs' \
+    >"$temp/sha256sums.stripped"
+
+# Download the root filesystem image.
+echo "Downloading root filesystem image..." 1>&2
+if ! wget -q -P "$temp" "$DOWNLOAD_ROOT_URL"; then
+    echo "Failed to download root filesystem image." 1>&2
+    echo "download failed"
+    exit 2
+fi
+
+# Download the kernel.
+echo "Downloading kernel..." 1>&2
+if ! wget -q -P "$temp" "$DOWNLOAD_KERNEL_URL"; then
+    echo "Failed to download kernel." 1>&2
+    echo "download failed"
+    exit 2
+fi
+
+# Verify the downloaded files.
+echo "Verifying downloads..." 1>&2
+if [ "${REALLY_BAD_IDEA:-}" != "iknow" ]; then
+    if ! (cd "$temp" && sha256sum -cs "sha256sums.stripped"); then
+        echo "Checksum verification failed!" 1>&2
+        echo "" 1>&2
+        echo "If you REALLY think you want to proceed, set the" 1>&2
+        echo "REALLY_BAD_IDEA='iknow' environment variable and try again." 1>&2
+        echo "checksum verification failed"
+        exit 3
+    fi
+fi
+
+# Move the files.
+if ! [ -d "$OUTDIR" ]; then
+    mkdir -p "$OUTDIR"
+fi
+
+mv "$temp/$(basename "$DOWNLOAD_KERNEL_URL")" "$OUTDIR/kernel.bin"
+mv "$temp/$(basename "$DOWNLOAD_ROOT_URL")" "$OUTDIR/rootfs.img.gz"
+

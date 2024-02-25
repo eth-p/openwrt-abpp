@@ -1,0 +1,96 @@
+#!/bin/ash
+# -----------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# https://github.com/eth-p/openwrt-abpp
+# -----------------------------------------------------------------------------
+# Executable utility script to generate a new grub.cfg file based on the
+# template described within the old one.
+#
+# Usage:
+#     template-grub [file] [ns] -- [var=value] [...] -- [...] >grub.cfg.new
+#
+# The template section must be delimited by:
+#     `###----- BEGIN ABPP TEMPLATE -----###`
+#     `###----- END ABPP TEMPLATE -----###`
+#
+# The template will be generated and filled out between:
+#     `###----- BEGIN ABPP GENERATED -----###`
+#     `###----- END ABPP GENERATED -----###`
+#
+# -----------------------------------------------------------------------------
+set -euo pipefail
+SCRIPTS="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+source "$SCRIPTS/lib/partitions.sh"
+
+# Check for correct command usage.
+if [ "$#" -lt 2 ]; then
+    echo "usage: $0 [file] [ns] -- [var=value] [...] -- [...]" 1>&2
+    exit 10
+fi
+
+# Extract the source file and number of templated items.
+file="$1"
+items="$2"
+shift
+shift
+
+# Read the template from the file.
+template="$(awk '
+    BEGIN { p=0 }
+    /^###----- END ABPP TEMPLATE -----###/ { exit }
+    { if(p) { print $0 } }
+    /^###----- BEGIN ABPP TEMPLATE -----###/ { p=1 }
+' "$file" | sed 's/^# \{0,1\}//')"
+
+if [ -z "$template" ]; then
+    echo "Cannot find template section." 1>&2
+    exit 2
+fi
+
+# Print data before the generated section.
+awk '
+    BEGIN { err=1 }
+    { print $0 }
+    /^###----- BEGIN ABPP GENERATED -----###/ { err=0; exit 0 }
+    END { exit err }
+' "$file" || {
+    echo "Cannot find beginning of generated section." 1>&2
+    exit 2
+}
+
+# Fill out the template for each item and print it.
+if [ "$items" -ge 1 ]; then
+    for item in $(seq 1 "$items"); do
+        if [ "${1:-}" != "--" ]; then
+            echo "Invalid template variable arguments." 1>&2
+            exit 10
+        fi
+
+        shift
+
+        # Replace template variables.
+        item_text="$template"
+        while [ "$#" -gt 0 ] && [ "$1" != "--" ]; do
+            var="$(printf "%s" "$1" | cut -d'=' -f1)"
+            val="$(printf "%s" "$1" | cut -d'=' -f2-)"
+            item_text="$(printf "%s" "$item_text" | sed "s#\${${var}}#${val}#g")"
+            shift
+        done
+
+        # Print the item.
+        printf "%s\n\n" "$item_text"
+    done
+fi
+
+# Print data after the generated section.
+awk '
+    BEGIN { p=0 }
+    /^###----- END ABPP GENERATED -----###/ { p=1 }
+    { if (p) { print $0 } }
+    END { if (!p) exit(1) }
+' "$file" || {
+    echo "Cannot find end of generated section." 1>&2
+    exit 2
+}
+

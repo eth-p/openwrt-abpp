@@ -1,0 +1,68 @@
+#!/bin/ash
+# -----------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# https://github.com/eth-p/openwrt-abpp
+# -----------------------------------------------------------------------------
+# Executable utility script to fetch information about the A/B partition
+# scheme.
+#
+# Usage:
+#     otherpart-info [field] [...]
+#
+# Fields:
+#     BOOT_DEVICE                 -- The raw block device.
+#     EFI_PARTITION               -- The EFI partition.
+#     EFI_PARTITION_NUMBER        -- ... partition number
+#     EFI_PARTITION_PARTUUID      -- ... partition uuid
+#     ACTIVE_PARTITION            -- The currrently-booted partition.
+#     ACTIVE_PARTITION_NUMBER     -- ... partition number
+#     ACTIVE_PARTITION_PARTUUID   -- ... partition uuid
+#     ACTIVE_PARTITION_LETTER     -- ... partition reference letter (e.g. "a")
+#     OTHER_PARTITION             -- The backup/alternate partition.
+#     OTHER_PARTITION_NUMBER      -- ... partition number
+#     OTHER_PARTITION_PARTUUID    -- ... partition uuid
+#     OTHER_PARTITION_LETTER      -- ... partition reference letter (e.g. "b")
+#
+# -----------------------------------------------------------------------------
+# Depends on packages:
+#  * block-mount
+#  * parted
+#  * blkid
+# -----------------------------------------------------------------------------
+set -euo pipefail
+SCRIPTS="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+source "$SCRIPTS/lib/partitions.sh"
+
+# Check for correct command usage.
+if [ "$#" -eq 0 ]; then
+    echo "usage: $0 [field] [...]" 1>&2
+    exit 10
+fi
+
+# Scan partitions.
+abpp_partitions_scan
+
+# Print fields.
+print_field() {
+    case "$2" in
+        '')        printf "%s\n" "$3" ;;
+        _NUMBER)   abpp_partitions_dev_to_partnum "$3" ;;
+        _PARTUUID) abpp_partitions_dev_to_partuuid "$3" ;;
+        *) printf "error: unknown field '%s%s'\n" "$1" "$2"; exit 10 ;;
+    esac
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        BOOT_DEVICE)             printf "%s\n" "$BOOT_DEVICE" ;;
+        EFI_PARTITION*)          print_field "$1" "${1:13}" "$EFI_PARTITION";;
+        ACTIVE_PARTITION_LETTER) echo "$ACTIVE_PARTITION_LETTER";;
+        ACTIVE_PARTITION*)       print_field "$1" "${1:16}" "$ACTIVE_PARTITION";;
+        OTHER_PARTITION_LETTER)  echo "$OTHER_PARTITION_LETTER";;
+        OTHER_PARTITION*)        print_field "$1" "${1:15}" "$OTHER_PARTITION";;
+        *) printf "error: unknown field '%s'\n" "$1"; exit 10 ;;
+    esac
+    shift
+done
+

@@ -1,8 +1,18 @@
-#!/bin/bash
+#!/bin/ash
 # -----------------------------------------------------------------------------
-# OpenWRT A/B Partition Project
+# OpenWrt A/B Partition Project
 # Copyright (C) 2024 eth-p
 # https://github.com/eth-p/openwrt-abpp
+# -----------------------------------------------------------------------------
+# Executable utility script to unmount an alternate OpenWrt partition.
+#
+# Usage:
+#     umount-openwrt [mountpoint]
+#
+# -----------------------------------------------------------------------------
+# Depends on packages:
+#  * block-mount
+#  * losetup
 # -----------------------------------------------------------------------------
 set -euo pipefail
 

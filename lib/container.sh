@@ -1,8 +1,17 @@
-#!/bin/sh
+#!/bin/ash
 # -----------------------------------------------------------------------------
-# OpenWRT A/B Partition Project
+# OpenWrt A/B Partition Project
 # Copyright (C) 2024 eth-p
 # https://github.com/eth-p/openwrt-abpp
+# -----------------------------------------------------------------------------
+# Library script for creating a lightweight container for working under the
+# root of an alternate partition.
+# -----------------------------------------------------------------------------
+# Depends on packages:
+#  * block-mount
+#  * unshare
+#  * nsenter
+#  * dumb-init
 # -----------------------------------------------------------------------------
 CONTAINER_RUNDIR="/tmp/abpp"
 
@@ -23,7 +32,7 @@ abpp_container_get_rundir() {
     local mount="$1"
     printf "%s/%s" \
         "$CONTAINER_RUNDIR" \
-	"$(echo "$mount" | sed 's/[^A-Za-z0-9]/-/g')"
+        "$(echo "$mount" | sed 's/[^A-Za-z0-9]/-/g')"
 }
 
 abpp_container_alive() {
@@ -61,10 +70,10 @@ abpp_container_sessions() {
         session_pid="$(cat "$session")"
         if kill -0 "$session_pid" 2>/dev/null; then
             echo "session_pid"
-	    status=0
+            status=0
         else
             rm "$session"
-	fi
+        fi
     done
 
     # Return 0 if any sessions were alive.
@@ -111,9 +120,9 @@ abpp_container_create() {
         --ipc="$rundir/ns/ipc" \
         --cgroup="$rundir/ns/cgroup" \
         /usr/sbin/dumb-init /bin/ash -c \
-	"mount -t proc procfs '$mount/proc' \
-	    && pivot_root '$mount' '$mount/.parent' \
-	    && while true; do sleep 1; done" &
+        "mount -t proc procfs '$mount/proc' \
+            && pivot_root '$mount' '$mount/.parent' \
+            && while true; do sleep 1; done" &
 
     echo "$!" > "$rundir/host.pid"
 

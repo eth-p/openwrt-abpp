@@ -1,0 +1,34 @@
+#!/bin/ash
+# -----------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# https://github.com/eth-p/openwrt-abpp
+# -----------------------------------------------------------------------------
+# Executable utility script to fetch information about the current OS release.
+#
+# Usage:
+#     release-info [field] [...]
+#
+# Fields:
+#     VERSION                     -- The OS version.
+#     PRETTY_NAME                 -- The pretty name.
+#     OPENWRT_BOARD               -- The mainboard architecture.
+#     OPENWRT_ARCH                -- The processor architecture.
+# -----------------------------------------------------------------------------
+set -euo pipefail
+
+# Check for correct command usage.
+if [ "$#" -eq 0 ]; then
+    echo "usage: $0 [field] [...]" 1>&2
+    exit 10
+fi
+
+# Source the OS release info.
+source /etc/os-release
+
+# Print the requested variables.
+while [ "$#" -gt 0 ]; do
+    eval "printf '%s\n' \"\$$1\""
+    shift
+done
+

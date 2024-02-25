@@ -1,0 +1,34 @@
+#!/bin/ash
+# -----------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# https://github.com/eth-p/openwrt-abpp
+# -----------------------------------------------------------------------------
+# Executable utility script to fetch information about installed packages.
+#
+# Usage:
+#     packages-info user          -- Print all non-system packages installed.
+#     packages-info user-minimal  -- Print all manually installed packages.
+#     packages-info system        -- Print all system-installed packages.
+#
+# -----------------------------------------------------------------------------
+# Depends on packages:
+#  * opkg (built-in)
+# -----------------------------------------------------------------------------
+set -euo pipefail
+SCRIPTS="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+source "$SCRIPTS/lib/packages.sh"
+
+# Check for correct command usage.
+if [ "$#" -ne 1 ]; then
+    echo "usage: $0 [category]" 1>&2
+    exit 10
+fi
+
+case "$1" in
+    user)          abpp_packages_list_user_installed ;;
+    user-minimal)  abpp_packages_list_user_installed_minimal ;;
+    system)        abpp_packages_list_baseimage_installed ;;
+    *) printf "error: unknown package category '%s'\n" "$1"; exit 10 ;;
+esac
+
