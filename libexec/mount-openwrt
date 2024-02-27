@@ -56,6 +56,13 @@ mount -o ro "$DEVICE" "$MOUNT/rom"
 [ -d "$MOUNT/overlay" ] || mkdir -p "$MOUNT/overlay"
 mount "$LO_DEVICE" "$MOUNT/overlay"
 
+# If the overlay filesystem is missing ".fs_state", it NEEDS to be created.
+# If the file is not a symlink to the value "2", the entire overlay will be thrown out.
+# https://lxr.openwrt.org/source/fstools/libfstools/overlay.c#L376
+if ! [ -L "$MOUNT/overlay/.fs_state" ] || [ "$(readlink "$MOUNT/overlay/.fs_state")" != 2 ]; then
+    ln -s "2" "$MOUNT/overlay/.fs_state"
+fi
+
 # Mount the overlay.
 [ -d "$MOUNT/overlay/upper" ] || mkdir -p "$MOUNT/overlay/upper"
 [ -d "$MOUNT/overlay/work" ]  || mkdir -p "$MOUNT/overlay/work"

@@ -146,6 +146,7 @@ abpp_container_destroy() {
 
     # Kill the init process if it's alive.
     if [ -f "$rundir/host.pid" ]; then
+        __abpp_container_enter "$mount" /bin/kill -TERM 1 || true
         kill -INT "$(cat "$rundir/host.pid")" || true
     fi
     

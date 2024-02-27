@@ -1,0 +1,75 @@
+#!/bin/ash
+# -----------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# https://github.com/eth-p/openwrt-abpp
+# -----------------------------------------------------------------------------
+# Executable utility script to get a list of downloadable OpenWrt releases.
+#
+# Usage:
+#     openwrt-versions [options]
+#
+# Options:
+#     --latest        -- Print only the latest version.
+#     --supported     -- Print only supported versions.
+#
+# -----------------------------------------------------------------------------
+# Depends on packages:
+#  * wget (built-in)
+# -----------------------------------------------------------------------------
+set -euo pipefail
+SCRIPTS="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+
+# Parse options.
+OPT_LATEST_ONLY=false
+OPT_CHECK_SUPPORTED=false
+
+while [ $# -gt 0 ]; do
+case "$1" in
+    --supported) OPT_CHECK_SUPPORTED=true ;;
+    --latest)    OPT_LATEST_ONLY=true ;;
+    -*) {
+        echo "unknown option: $1" 1>&2
+	exit 10
+    };;
+    *) {
+        echo "usage: $0 [options]" 1>&2
+	exit 10
+    };;
+esac
+shift
+done
+
+# Determine the download URLs.
+BOARD="$("$SCRIPTS/libexec/release-info" OPENWRT_BOARD)"
+ARCH="$("$SCRIPTS/libexec/release-info" OPENWRT_ARCH | sed 's/_/-/g')"
+
+DOWNLOAD_URL_RELEASES="https://downloads.openwrt.org/releases/"
+DOWNLOAD_URL_BASE="https://downloads.openwrt.org/releases/%s/targets/${BOARD}/"
+
+# Fetch the listing and parse out the versions.
+versions="$(
+    wget -q -O "-" "$DOWNLOAD_URL_RELEASES" \
+        | grep -o 'href="[0-9.]\{1,\}\(-[a-zA-Z0-9]*\)\{0,1\}/"' \
+        | grep -o '[0-9.]\{1,\}\(-[a-zA-Z0-9]*\)\{0,1\}' \
+	| sort -V 
+)"
+
+# Filter out only supported versions.
+if "$OPT_CHECK_SUPPORTED"; then
+    versions="$(printf "%s\n" "$versions" | {
+        while read -r version; do
+            if wget -q -s "$(printf "$DOWNLOAD_URL_BASE" "$version")"; then
+                printf "%s\n" "$version"
+	    fi
+	done
+    })"
+fi
+
+# Filter out non-latest versions.
+if "$OPT_LATEST_ONLY"; then
+    versions="$(printf "%s" "$versions" | tail -n1)"
+fi
+
+# Print the versions.
+printf "%s\n" "$versions"
