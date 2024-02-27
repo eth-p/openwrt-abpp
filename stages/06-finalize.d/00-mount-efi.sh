@@ -1,8 +1,15 @@
 #=abpp
-# --------
-# This script mounts the OpenWrt installation from the target partition.
-# Mounting includes the ROM partition, data partition, and overlay.
-# --------
+# ---------------------------------------------------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# MIT License
+# https://github.com/eth-p/openwrt-abpp
+# ---------------------------------------------------------------------------------------------------------------------
+# This upgrade stage mounts the EFI partition.
+#
+# After completion, the following variables will be available to future stages:
+#  * EFI_ROOT                 -- The path to the mounted EFI partition's filesystem.
+# ---------------------------------------------------------------------------------------------------------------------
 
 EFI_ROOT="$ABPP_WORKDIR/efi"
 
@@ -12,9 +19,8 @@ if ! [ -d "$EFI_ROOT" ]; then
 fi
 
 # Attempt to mount the directory.
-echo "Mounting bootloader partition..."
+echo "Mounting bootloader filesystem..."
 mount -t vfat "$UPGRADE_EFI_PARTITION" "$EFI_ROOT"
 
 # Add the mount point location to the vars.
 abpp_update_var EFI_ROOT
-

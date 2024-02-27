@@ -1,8 +1,12 @@
 #=abpp
-# --------
-# This script mounts the OpenWrt installation from the target partition.
-# Mounting includes the ROM partition, data partition, and overlay.
-# --------
+# ---------------------------------------------------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# MIT License
+# https://github.com/eth-p/openwrt-abpp
+# ---------------------------------------------------------------------------------------------------------------------
+# This upgrade stage updates the GRUB configuration to use the newly-flashed OpenWrt installation as the default.
+# ---------------------------------------------------------------------------------------------------------------------
 
 grubcfg_current="$EFI_ROOT/boot/grub/grub.cfg"
 grubcfg_new="$EFI_ROOT/boot/grub/grub.cfg-new"
@@ -27,11 +31,11 @@ new_version="$({ source "$MOUNTED_ROOT/etc/os-release" && echo "$VERSION"; })"
 old_letter="$ACTIVE_PARTITION_LETTER"
 new_letter="$OTHER_PARTITION_LETTER"
 
-# Create a copy of the old grub config.
+# Create a copy of the old GRUB config.
 echo "Backing up old grub config..."
 cp "$grubcfg_current" "$grubcfg_old"
 
-# Generate a new grub config from the template.
+# Generate a new GRUB config from the template.
 echo "Generating grub config..."
 "$SCRIPTS"/libexec/template-grub "$grubcfg_current" 2 \
     -- VERSION="$new_version" LETTER="$new_letter" PARTITION="PARTUUID=$new_partuuid" \
@@ -56,4 +60,3 @@ fi
 # Apply the config.
 echo "Applying config..."
 mv "$grubcfg_new" "$grubcfg_current"
-

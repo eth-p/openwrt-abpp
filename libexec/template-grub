@@ -1,11 +1,11 @@
 #!/bin/ash
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # OpenWrt A/B Partition Project
 # Copyright (C) 2024 eth-p
+# MIT License
 # https://github.com/eth-p/openwrt-abpp
-# -----------------------------------------------------------------------------
-# Executable utility script to generate a new grub.cfg file based on the
-# template described within the old one.
+# ---------------------------------------------------------------------------------------------------------------------
+# Executable utility script to generate a new grub.cfg file based on the template described within the old one.
 #
 # Usage:
 #     template-grub [file] [ns] -- [var=value] [...] -- [...] >grub.cfg.new
@@ -18,7 +18,7 @@
 #     `###----- BEGIN ABPP GENERATED -----###`
 #     `###----- END ABPP GENERATED -----###`
 #
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 set -euo pipefail
 SCRIPTS="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 source "$SCRIPTS/lib/partitions.sh"
@@ -93,4 +93,3 @@ awk '
     echo "Cannot find end of generated section." 1>&2
     exit 2
 }
-

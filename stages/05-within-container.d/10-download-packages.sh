@@ -1,7 +1,13 @@
 #=abpp
-# --------
-# This script creates a lightweight container.
-# --------
+# ---------------------------------------------------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# MIT License
+# https://github.com/eth-p/openwrt-abpp
+# ---------------------------------------------------------------------------------------------------------------------
+# This upgrade stage downloads the user's selected packages on the new installation.
+# It will also add a uci-defaults script to install them (and subsequently reboot) on first boot.
+# ---------------------------------------------------------------------------------------------------------------------
 
 packages_dirname="/packages"
 packageslist_filename="packages.list"
@@ -44,4 +50,3 @@ opkg install "$MOUNTED_WORKDIR_REL/$packages_dirname"/* \
     && rm "$MOUNTED_WORKDIR_REL/$packageslist_filename" \
     && echo 'reboot -d 10' >/etc/uci-defaults/99_abpp_reboot
 EOF
-

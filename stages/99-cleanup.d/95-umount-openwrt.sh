@@ -1,7 +1,12 @@
 #=abpp
-# --------
-# This script unmounts the new OpenWrt installation.
-# --------
+# ---------------------------------------------------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# MIT License
+# https://github.com/eth-p/openwrt-abpp
+# ---------------------------------------------------------------------------------------------------------------------
+# This upgrade stage attempts to unmount the newly-flashed partition's filesystems.
+# ---------------------------------------------------------------------------------------------------------------------
 
 # Exit early if there is no mount.
 if [ -z "${MOUNTED_ROOT:-}" ]; then
@@ -10,7 +15,7 @@ fi
 
 # Unmount the other installation.
 if grep -F "$MOUNTED_ROOT" /proc/mounts &>/dev/null; then
-    echo "Unmounting OpenWrt..."
+    echo "Unmounting OpenWrt filesystems..."
     "$SCRIPTS"/libexec/umount-openwrt \
         "$MOUNTED_ROOT"
 fi
@@ -19,4 +24,3 @@ fi
 if [ -d "$MOUNTED_ROOT" ]; then
     rmdir "$MOUNTED_ROOT"
 fi
-

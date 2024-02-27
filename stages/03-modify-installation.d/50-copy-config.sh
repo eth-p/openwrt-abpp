@@ -1,8 +1,13 @@
 #=abpp
-# --------
-# This script uses the sysupgrade tool to create a configuration backup.
-# The backup will then be copied to the mounted target partition.
-# --------
+# ---------------------------------------------------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# MIT License
+# https://github.com/eth-p/openwrt-abpp
+# ---------------------------------------------------------------------------------------------------------------------
+# This upgrade stage will store a backup of the user's current configuration on the newly-flashed installation.
+# It will also add a uci-defaults script to restore the backup on first boot.
+# ---------------------------------------------------------------------------------------------------------------------
 
 backup_filename="config.tar.gz"
 
@@ -16,4 +21,3 @@ cat <<EOF >"$MOUNTED_ROOT/etc/uci-defaults/01_abpp_05_restore_config"
 sysupgrade --restore-backup "$MOUNTED_WORKDIR_REL/$backup_filename" \\
     && rm "$MOUNTED_WORKDIR_REL/$backup_filename"
 EOF
-

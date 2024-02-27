@@ -5,21 +5,8 @@
 # MIT License
 # https://github.com/eth-p/openwrt-abpp
 # ---------------------------------------------------------------------------------------------------------------------
-# This upgrade stage attempts to unmount the EFI partition.
+# This upgrade stage attempts to remove all the leftover files in `/tmp`.
 # ---------------------------------------------------------------------------------------------------------------------
 
-# Exit early if there is no mount.
-if [ -z "${EFI_ROOT:-}" ]; then
-    exit 0
-fi
-
-# Unmount the other installation.
-if grep -F "$EFI_ROOT" /proc/mounts &>/dev/null; then
-    echo "Unmounting bootloader filesystem..."
-    umount "$EFI_ROOT"
-fi
-
-# Remove the mountpoint directory.
-if [ -d "$EFI_ROOT" ]; then
-    rmdir "$EFI_ROOT"
-fi
+echo "Removing leftover files..."
+rm -rf "$MOUNTED_ROOT/tmp"/* 2>/dev/null || true

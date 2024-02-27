@@ -1,7 +1,15 @@
 #=abpp
-# --------
-# This script asks the user which version of OpenWrt to install.
-# --------
+# ---------------------------------------------------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# MIT License
+# https://github.com/eth-p/openwrt-abpp
+# ---------------------------------------------------------------------------------------------------------------------
+# This upgrade stage downloads a list of compatible OpenWrt versions and asks the user to select one.
+#
+# After completion, the following variables will be available to future stages:
+#  * UPGRADE_NEW_VERSION      -- The selected version of OpenWrt to install.
+# ---------------------------------------------------------------------------------------------------------------------
 
 # Get the current version.
 current_version="$("$SCRIPTS"/libexec/release-info VERSION)"
@@ -29,4 +37,3 @@ fi
 # Save the selected version to a variable for later reference.
 UPGRADE_NEW_VERSION="$selected_version"
 abpp_update_var UPGRADE_NEW_VERSION
-

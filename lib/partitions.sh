@@ -1,17 +1,22 @@
 #!/bin/ash
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # OpenWrt A/B Partition Project
 # Copyright (C) 2024 eth-p
+# MIT License
 # https://github.com/eth-p/openwrt-abpp
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # Library script for fetching information about the A/B partition scheme.
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # Depends on packages:
 #  * block-mount
 #  * parted
 #  * blkid
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 
+# Function: abpp_partitions_scan
+#
+# Scans the drives and their partition tables to determine which partition is the active partition, which
+# partition is the inactive partition, and which partition is the EFI partition.
 abpp_partitions_scan() {
     # Find the boot storage device and active partition.
     ACTIVE_PARTITION="$(block info | grep 'MOUNT="/rom"' | cut -d' ' -f1 | sed 's/:$//')" || {
@@ -27,19 +32,19 @@ abpp_partitions_scan() {
     local part_a_num part_b_num
     while IFS=':' read -r part_num start end size fs label more; do
         case "$label" in
-            "OpenWRT-A") part_a_num="$part_num" ;;
-            "OpenWRT-B") part_b_num="$part_num" ;;
+            "OpenWrt-A") part_a_num="$part_num" ;;
+            "OpenWrt-B") part_b_num="$part_num" ;;
         esac
     done < <(parted "$BOOT_DEVICE" print --machine | sed 1d)
 
     if [ -z "${part_a_num:-}" ]; then
-        echo "Unable to find partition with label 'OpenWRT-A'." 1>&2
+        echo "Unable to find partition with label 'OpenWrt-A'." 1>&2
         echo "cannot find partition 'A'"
         return 20
     fi
 
     if [ -z "${part_b_num:-}" ]; then
-        echo "Unable to find partition with label 'OpenWRT-B'." 1>&2
+        echo "Unable to find partition with label 'OpenWrt-B'." 1>&2
         echo "cannot find partition 'B'"
         return 20
     fi
@@ -71,20 +76,34 @@ abpp_partitions_scan() {
     )"
 }
 
+# Function: abpp_partitions_dev_to_diskdev
+# Prints the disk identifier (e.g. `sda`) for the given device path.
+#
+# Parameters:
+#   $1 -- The `/dev/...` device path.
 abpp_partitions_dev_to_diskdev() {
     printf "%s" "$1" \
         | sed 's/[0-9]\{1,\}$//'
 }
 
+# Function: abpp_partitions_dev_to_diskdev
+# Prints the partition number for the given device path.
+#
+# Parameters:
+#   $1 -- The `/dev/...` device path.
 abpp_partitions_dev_to_partnum() {
     printf "%s" "$1" \
         | grep -o '[0-9]\{1,\}$'
 }
 
+# Function: abpp_partitions_dev_to_partuuid
+# Prints the partition UUID for the given partition device path.
+#
+# Parameters:
+#   $1 -- The `/dev/...` device path.
 abpp_partitions_dev_to_partuuid() {
     blkid "$1" 2>/dev/null \
         | grep -o 'PARTUUID="[0-9a-f-]*"' \
         | sed 's/PARTUUID=//; s/"//g' \
         || return 1
 }
-

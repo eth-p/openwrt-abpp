@@ -1,9 +1,10 @@
 #!/bin/ash
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # OpenWrt A/B Partition Project
 # Copyright (C) 2024 eth-p
+# MIT License
 # https://github.com/eth-p/openwrt-abpp
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # Executable utility script to fetch information about the current OS release.
 #
 # Usage:
@@ -14,7 +15,7 @@
 #     PRETTY_NAME                 -- The pretty name.
 #     OPENWRT_BOARD               -- The mainboard architecture.
 #     OPENWRT_ARCH                -- The processor architecture.
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 set -euo pipefail
 
 # Check for correct command usage.

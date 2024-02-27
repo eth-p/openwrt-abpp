@@ -1,8 +1,12 @@
 #=abpp
-# --------
-# This script mounts the OpenWrt installation from the target partition.
-# Mounting includes the ROM partition, data partition, and overlay.
-# --------
+# ---------------------------------------------------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# MIT License
+# https://github.com/eth-p/openwrt-abpp
+# ---------------------------------------------------------------------------------------------------------------------
+# This upgrade stage copies the downloaded Linux kernel to the EFI partition.
+# ---------------------------------------------------------------------------------------------------------------------
 
 # Figure out which kernel file to replace.
 echo "Scanning partition table..."
@@ -12,4 +16,3 @@ echo "Scan complete."
 # Replace the kernel file.
 echo "Copying kernel..."
 cp "$UPGRADE_KERNEL_FILE" "$EFI_ROOT/boot/vmlinuz-${OTHER_PARTITION_LETTER}"
-

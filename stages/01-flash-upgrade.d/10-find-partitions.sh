@@ -1,7 +1,17 @@
 #=abpp
-# --------
-# This script selects the target partition to flash OpenWrt to.
-# --------
+# ---------------------------------------------------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# MIT License
+# https://github.com/eth-p/openwrt-abpp
+# ---------------------------------------------------------------------------------------------------------------------
+# This upgrade stage searches for the inactive (other) partition.
+# After confirming with the user, OpenWrt will be installed to that partition.
+#
+# After completion, the following variables will be available to future stages:
+#  * UPGRADE_TARGET_PARTITION -- The `/dev/...` path for inactive partition.
+#  * UPGRADE_EFI_PARTITION    -- The `/dev/...` path for EFI partition.
+# ---------------------------------------------------------------------------------------------------------------------
 
 # Scan for the active and other partition.
 echo "Scanning partition table..."
@@ -34,4 +44,3 @@ UPGRADE_EFI_PARTITION="$EFI_PARTITION"
 abpp_update_var \
     UPGRADE_TARGET_PARTITION \
     UPGRADE_EFI_PARTITION
-

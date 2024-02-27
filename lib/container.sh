@@ -1,20 +1,22 @@
 #!/bin/ash
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # OpenWrt A/B Partition Project
 # Copyright (C) 2024 eth-p
+# MIT License
 # https://github.com/eth-p/openwrt-abpp
-# -----------------------------------------------------------------------------
-# Library script for creating a lightweight container for working under the
-# root of an alternate partition.
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
+# Library script for creating a lightweight container for working under the root of an alternate partition.
+# ---------------------------------------------------------------------------------------------------------------------
 # Depends on packages:
 #  * block-mount
 #  * unshare
 #  * nsenter
 #  * dumb-init
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 CONTAINER_RUNDIR="/tmp/abpp"
 
+# Function: abpp_container_firstrun
+# Prepares the system to run openwrt-abpp's implementation of Linux containers.
 abpp_container_firstrun() {
     if [ -d "$CONTAINER_RUNDIR" ]; then
         return 0
@@ -28,6 +30,11 @@ abpp_container_firstrun() {
     mount --make-private "$CONTAINER_RUNDIR"
 }
 
+# Function: abpp_container_get_rundir
+# Prints the runtime directory for the given container.
+#
+# Parameters:
+#   $1 -- The root directory of the container.
 abpp_container_get_rundir() {
     local mount="$1"
     printf "%s/%s" \
@@ -35,6 +42,11 @@ abpp_container_get_rundir() {
         "$(echo "$mount" | sed 's/[^A-Za-z0-9]/-/g')"
 }
 
+# Function: abpp_container_alive
+# Checks if the given container is running.
+#
+# Parameters:
+#   $1 -- The root directory of the container.
 abpp_container_alive() {
     if [ -z "${1:-}" ]; then
         echo "usage: abpp_container_alive [mountpoint]" 1>&2
@@ -53,6 +65,11 @@ abpp_container_alive() {
     return 0
 }
 
+# Function: abpp_container_sessions
+# Prints a list of active sessions within the given container.
+#
+# Parameters:
+#   $1 -- The root directory of the container.
 abpp_container_sessions() {
     if [ -z "${1:-}" ]; then
         echo "usage: abpp_container_alive [mountpoint]" 1>&2
@@ -80,6 +97,11 @@ abpp_container_sessions() {
     return $status
 }
 
+# Function: abpp_container_create
+# Creates a new container.
+#
+# Parameters:
+#   $1 -- The root directory of the container.
 abpp_container_create() {
     if [ -z "${1:-}" ]; then
         echo "usage: abpp_container_create [mountpoint]" 1>&2
@@ -135,6 +157,11 @@ abpp_container_create() {
     done
 }
 
+# Function: abpp_container_destroy
+# Destroys an existing container.
+#
+# Parameters:
+#   $1 -- The root directory of the container.
 abpp_container_destroy() {
     if [ -z "${1:-}" ]; then
         echo "usage: abpp_container_destroy [mountpoint]" 1>&2
@@ -149,7 +176,7 @@ abpp_container_destroy() {
         __abpp_container_enter "$mount" /bin/kill -TERM 1 || true
         kill -INT "$(cat "$rundir/host.pid")" || true
     fi
-    
+
     # Wait until it's no longer possible to enter the container.
     while true; do
         sleep 1
@@ -185,9 +212,16 @@ abpp_container_destroy() {
     rmdir "$rundir" || true
 }
 
+# Function: __abpp_container_enter
+# Runs an executable inside a container.
+#
+# Parameters:
+#   $1 -- The root directory of the container.
+#   $2 -- The path (within the container's root) of the executable.
+#   .. -- The executable's arguments.
 __abpp_container_enter() {
     if [ -z "${1:-}${2:-}" ]; then
-        echo "usage: abpp_container_enter [mountpoint] [command] [args...]" 1>&2
+        echo "usage: __abpp_container_enter [mountpoint] [command] [args...]" 1>&2
         return 10
     fi
 
@@ -205,6 +239,13 @@ __abpp_container_enter() {
         "$@"
 }
 
+# Function: abpp_container_enter
+# Runs an executable inside a container.
+#
+# Parameters:
+#   $1 -- The root directory of the container.
+#   $2 -- The path (within the container's root) of the executable.
+#   .. -- The executable's arguments.
 abpp_container_enter() {
     if [ -z "${1:-}${2:-}" ]; then
         echo "usage: abpp_container_enter [mountpoint] [command] [args...]" 1>&2
@@ -227,4 +268,3 @@ abpp_container_enter() {
     rm "$rundir/sessions/$$"
     return $status
 }
-

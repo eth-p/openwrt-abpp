@@ -1,7 +1,12 @@
 #=abpp
-# --------
-# This script removes files created during the upgrade process.
-# --------
+# ---------------------------------------------------------------------------------------------------------------------
+# OpenWrt A/B Partition Project
+# Copyright (C) 2024 eth-p
+# MIT License
+# https://github.com/eth-p/openwrt-abpp
+# ---------------------------------------------------------------------------------------------------------------------
+# This upgrade stage attempts to remove files created during the upgrade process.
+# ---------------------------------------------------------------------------------------------------------------------
 
 if [ -n "${UPGRADE_ROOTFS_FILE:-}" ] && [ -f "${UPGRADE_ROOTFS_FILE}" ]; then
     echo "Removing rootfs.img.gz..."
@@ -22,4 +27,3 @@ if [ -n "${ABPP_TEMPDIR:-}" ] && [ -d "${ABPP_TEMPDIR}" ]; then
     echo "Removing temporary directory..."
     rmdir "$ABPP_TEMPDIR"
 fi
-

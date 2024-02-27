@@ -1,9 +1,10 @@
 #!/bin/ash
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # OpenWrt A/B Partition Project
 # Copyright (C) 2024 eth-p
+# MIT License
 # https://github.com/eth-p/openwrt-abpp
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # Executable utility script to fetch information about installed packages.
 #
 # Usage:
@@ -11,10 +12,10 @@
 #     packages-info user-minimal  -- Print all manually installed packages.
 #     packages-info system        -- Print all system-installed packages.
 #
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # Depends on packages:
 #  * opkg (built-in)
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 set -euo pipefail
 SCRIPTS="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 source "$SCRIPTS/lib/packages.sh"
@@ -31,4 +32,3 @@ case "$1" in
     system)        abpp_packages_list_baseimage_installed ;;
     *) printf "error: unknown package category '%s'\n" "$1"; exit 10 ;;
 esac
-

@@ -1,15 +1,16 @@
 #!/bin/ash
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # OpenWrt A/B Partition Project
 # Copyright (C) 2024 eth-p
+# MIT License
 # https://github.com/eth-p/openwrt-abpp
-# -----------------------------------------------------------------------------
-# Executable script to perform a multi-part upgrade process.
-# 
+# ---------------------------------------------------------------------------------------------------------------------
+# Executable script to perform a resumable, multi-part upgrade process.
+#
 # This will execute the scripts under the stages/*.d/* directory in sort order.
 # If any script fails, this script will exit.
 # If an upgrade is left incomplete, you may re-run this script to resume it.
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 set -euo pipefail
 SCRIPTS="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 source "$SCRIPTS/config"
@@ -19,14 +20,14 @@ source "$SCRIPTS/lib/partitions.sh"
 source "$SCRIPTS/lib/print.sh"
 source "$SCRIPTS/lib/prompt.sh"
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # ==> Parse options.
 OPT_ABANDON=false
 
 while [ $# -gt 0 ]; do
 case "$1" in
     --abandon) OPT_ABANDON=true ;;
-    -*) {
+    *) {
         abpp_print "%{ERR}Unknown option: '%{CODE}%s%{ERR}'\n%{R}" "$1"
         exit 10
     } ;;
@@ -34,29 +35,29 @@ esac
 shift
 done
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # ==> Set up environment.
 export ABPP_VARSFILE="$ABPP_WORKDIR/VARS"
 export ABPP_TEMPDIR="$ABPP_WORKDIR/temp"
 export TMPDIR="$ABPP_TEMPDIR"
 
-# Utility function to update variables inside the varfile.
+# Utility function to update variables inside the varsfile.
 abpp_update_var() {
     {
         while [ $# -gt 0 ]; do
             eval "printf '%s=%s\n' \"$1\" \"\$$1\""
-	    shift
+            shift
         done
     } | sed 's/ /\\ /g' >>"$ABPP_VARSFILE"
 }
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # ==> Find available stages.
 STAGES_DIR="$SCRIPTS/stages"
 STAGES="$({
     printf "%s\n" "$STAGES_DIR"/*/* \
         | grep -v '\*' \
-	| cut -c "$(expr "${#STAGES_DIR}" + 2)"- \
+        | cut -c "$(expr "${#STAGES_DIR}" + 2)"- \
         | sort
 })"
 
@@ -64,10 +65,10 @@ STAGES="$({
 stage_name() {
     printf "%s (%s)\n" \
         "$(dirname -- "$1" | sed 's/^[0-9]*-//; s/\.d$//; s/-/ /g')" \
-	"$(basename -- "$1" | sed 's/^[0-9]*-//; s/\.[^.]*$//; s/-/ /g')"
+        "$(basename -- "$1" | sed 's/^[0-9]*-//; s/\.[^.]*$//; s/-/ /g')"
 }
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # ==> Prepare for upgrading.
 [ -d "$ABPP_TEMPDIR" ]       || mkdir -p "$ABPP_TEMPDIR"
 [ -f "$ABPP_WORKDIR/STAGE" ] || touch "$ABPP_WORKDIR/STAGE"
@@ -75,12 +76,12 @@ stage_name() {
     printf "" >"$ABPP_VARSFILE"
     abpp_update_var \
         ABPP_VARSFILE \
-	ABPP_WORKDIR \
-	ABPP_TEMPDIR \
-	TMPDIR
+        ABPP_WORKDIR \
+        ABPP_TEMPDIR \
+        TMPDIR
 }
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # ==> Find previous/next/remaining stages.
 last_stage="$(cat "$ABPP_WORKDIR/STAGE")"
 if [ -z "$last_stage" ]; then
@@ -89,12 +90,12 @@ if [ -z "$last_stage" ]; then
 else
     prev_stages="$({
         printf "%s\n" "$STAGES" \
-	    | awk -v c="$last_stage" '{ print $0 }; $0==c { exit }'
+            | awk -v c="$last_stage" '{ print $0 }; $0==c { exit }'
     })"
-	
+
     next_stages="$({
         printf "%s\n" "$STAGES" \
-	    | awk -v c="$last_stage" -v p=0 '{ if(p) print $0 } $0==c { p = 1 }'
+            | awk -v c="$last_stage" -v p=0 '{ if(p) print $0 } $0==c { p = 1 }'
     })"
 fi
 
@@ -108,19 +109,19 @@ fi
 # Get the next stage.
 next_stage="$(printf "%s" "$next_stages" | head -n1)"
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # ==> Warn if resuming in-progress upgrade.
 if [ -n "$last_stage" ]; then
     abpp_print_notice WARN \
         "AN UPGRADE WAS ALREADY IN PROGRESS" \
-	"The next step is %{CODE}$(stage_name "$next_stage")%{R}." \
-	"" \
-	"If you wish to abandon the upgrade, use the %{CODE}--abandon%{R} option." \
-	"Otherwise, please confirm to continue."
+        "The next step is %{CODE}$(stage_name "$next_stage")%{R}." \
+        "" \
+        "If you wish to abandon the upgrade, use the %{CODE}--abandon%{R} option." \
+        "Otherwise, please confirm to continue."
     abpp_prompt_confirm y "Continue?" || exit 1
 fi
 
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # ==> Run all stages.
 
 run_stage() {
@@ -132,19 +133,19 @@ run_stage() {
 
     # Run the script.
     {
-	echo ""
+        echo ""
         abpp_print_stage "$(stage_name "$stage_rel")"
         if [ "$(head -n1 "$stage_file")" = "#=abpp" ]; then
             ({ source "$stage_file"; })
-	else
+        else
             "$stage_file"
-	fi
+        fi
     } || {
         echo ""
         abpp_print_error \
-	    "Upgrade step failed." \
-	    "See above for details."
-	return 1
+            "Upgrade step failed." \
+            "See above for details."
+        return 1
     }
 }
 
@@ -160,9 +161,8 @@ while [ -n "$next_stage" ]; do
     next_stage="$(printf "%s" "$next_stages" | head -n1)"
 done
 
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # ==> All stages have been run. Clean up remaining files.
 if [ -f "$ABPP_WORKDIR/STAGE" ]; then rm "$ABPP_WORKDIR/STAGE"; fi
 if [ -f "$ABPP_WORKDIR/VARS" ];  then rm "$ABPP_WORKDIR/VARS"; fi
 if [ -d "$ABPP_WORKDIR" ];       then rmdir "$ABPP_WORKDIR"; fi
-
