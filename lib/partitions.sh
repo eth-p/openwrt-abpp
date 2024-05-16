@@ -56,7 +56,7 @@ abpp_partitions_scan() {
         other_num="$part_b_num"
         ACTIVE_PARTITION_LETTER="a"
         OTHER_PARTITION_LETTER="b"
-    elif [ "$part_b_num" = "$ACTIVE_PARTITION_NUMBER" ]; then
+    elif [ "$part_b_num" = "$active_num" ]; then
         other_num="$part_a_num"
         ACTIVE_PARTITION_LETTER="b"
         OTHER_PARTITION_LETTER="a"
