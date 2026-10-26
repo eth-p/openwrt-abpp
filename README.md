@@ -85,6 +85,11 @@ Next, use `parted` to rename each of the partitions:
 > Partition `10` and `11` **must** be named `OpenWrt-A` and `OpenWrt-B` respectively.  
 > The partition name is used by `abupgrade` to detect which partition to flash.
 
+The device paths depend on the disk type: partition 10 is `/dev/sda10` on an
+SATA disk, but `/dev/nvme0n1p10` on NVMe (and `/dev/mmcblk0p10` on eMMC).
+`abupgrade` supports these device naming schemes and finds the A/B partitions
+by their labels, even when other partition numbers are present.
+
 You will need the partition UUIDs for `OpenWrt-A` later, so make sure to
 find it using `blkid` and write it down:
 
@@ -113,7 +118,7 @@ The `grub.cfg` file is located on partition 1.
 mkdir -p /mnt/efi
 mount -t vfat /dev/sda1 /mnt/efi
 mv /mnt/efi/boot/vmlinuz /mnt/efi/boot/vmlinuz-a
-nano /mnt/efi/boot/grub/grub.cfg
+vi /mnt/efi/boot/grub/grub.cfg
 ```
 
 The original GRUB config will like something like this:
@@ -206,8 +211,12 @@ You may now reboot into OpenWrt.
 
 ### Changes within OpenWrt
 
-Once you have booted into OpenWrt and have internet connectivity, you will need to
-install the following packages using `opkg`:
+Once you have booted into OpenWrt, ensure the device has internet connectivity.
+After you confirm the target version and packages to carry over and the release
+has downloaded, `abupgrade` automatically installs any missing required
+packages using the package manager available on your installation (`apk` is
+preferred when both are available). This happens before partition discovery,
+which requires some of these tools:
 
  * `blkid`
  * `block-mount`
@@ -217,11 +226,20 @@ install the following packages using `opkg`:
  * `losetup`
  * `nsenter`
  * `parted`
+ * `rsync`
  * `squashfs-tools-unsquashfs`
  * `unshare`
 
+Package indexes must be reachable when these packages are installed. The
+package manager's index update runs before installation.
+`rsync` is used when `config_migration` is set to `rsync` in `/etc/config/abpp`.
+
 After installing the packages, configure partition 2
 [to be mounted on startup](https://openwrt.org/docs/guide-user/storage/fstab).
+
+When downloading a release from an APK-based installation, `download-upgrade`
+installs `gnupg2` if needed and verifies the downloaded release key against
+OpenWrt's pinned signing-key fingerprint.
 
 Finally, download [a tarball of this repo](https://github.com/eth-p/openwrt-abpp/archive/refs/heads/master.tar.gz) and
 extract somewhere within partition 2.
@@ -236,12 +254,81 @@ script. It will:
  * Let you select a version to flash.
  * Download the rootfs.
  * Flash the rootfs to the alternate partition.
- * Copy your configuration (using `sysupgrade -b`) to the alternate partition.
+ * Migrate your configuration using `sysupgrade` or `rsync`, depending on your configuration.
  * Download your currently-installed packages to the alternate partition.
  * Update GRUB to automatically select the newly-flashed partition.
 
 Once you reboot into the newly-flashed partition, openwrt-abpp will restore your configuration, install your packages,
-and trigger a reboot to finalize everything.
+and trigger a reboot to finalize everything. First-boot package installation progress is written to the kernel message
+log via `/dev/kmsg` and displayed on the boot console, naming each package as the package manager installs or upgrades
+it. Output is saved to `/abpp-upgrading/packages-install.log` while installation runs. After a successful
+installation, `/abpp-upgrading` is removed before reboot; if installation fails, the directory and log are kept for
+troubleshooting.
+
+### Booting the other partition without upgrading
+
+You can boot an OpenWrt installation already present on the other partition without running `abupgrade`. If you have
+console access, select the desired `OpenWrt <version>` entry in the GRUB menu before its five-second timeout expires.
+This selects it for this startup without flashing either partition or changing the default for future boots.
+
+#### Switching over SSH
+
+To switch remotely, edit the GRUB configuration over SSH. Find and mount the EFI partition, then open its config in
+`vi`:
+
+```sh
+ABPP=/path/to/openwrt-abpp
+EFI_PARTITION="$("$ABPP/libexec/otherpart-info" EFI_PARTITION)"
+mkdir -p /mnt/efi
+mount "$EFI_PARTITION" /mnt/efi
+vi /mnt/efi/boot/grub/grub.cfg
+```
+
+Change `set default="0"` near the top of the file to `set default="<index>"`, using the index of the desired entry.
+Save the file and reboot. This changes only which existing installation GRUB boots; it does not run an upgrade or
+flash either partition.
+
+### Choosing a configuration migration method
+
+By default, openwrt-abpp uses `sysupgrade` to back up the current configuration and restore it on the new partition's
+first boot. To use `rsync` instead, set `config_migration` in `/etc/config/abpp`:
+
+```uci
+config abpp 'main'
+        option config_migration 'rsync'
+```
+
+The supported values are `sysupgrade` and `rsync`. If `/etc/config/abpp` or the option is absent, `sysupgrade` is
+used. The `rsync` method copies the contents of `/etc`, including dot-files and hidden directories, to the new
+partition before reboot. It overwrites matching entries but does not delete target-only files, preserving defaults
+and first-boot scripts from the new OpenWrt release. It also leaves `/etc/apk`, `/etc/opkg`, `/etc/banner`, and
+`/etc/banner.failsafe` untouched so package constraints, feeds, and release-specific banners from the active release
+do not overwrite the target release's files. The exclusion patterns are maintained in `rsync-excludes.txt` and are
+matched relative to the `/etc/` source root. Install the `rsync` package on the active system before selecting this
+method.
+
+### Excluding packages from migration
+
+Packages unavailable from the target release's repositories can be omitted from
+the migration and installed separately after the upgrade. Create or edit
+`/etc/config/abpp` with one `exclude_package` list entry per package:
+
+```uci
+config abpp 'main'
+        list exclude_package 'luci-app-argon-config'
+        list exclude_package 'luci-theme-argon'
+```
+
+Configured exclusions are omitted before openwrt-abpp infers the proposed
+package list, so they do not contribute packages through dependency or
+provides analysis. They remain excluded even if added in the package-list
+editor. This affects migration only; packages already present in the new
+release are not uninstalled. With no configuration file or no exclusion
+entries, all selected packages are handled as usual.
+
+For APK-based installations, inferred migration candidates are limited to
+packages reported as currently installed by APK. Packages removed from the
+running installation are not re-added based on package database records.
 
 ## How it Works
 
@@ -250,4 +337,4 @@ Essentially, it flashes a new OpenWrt installation and copies/downloads your cha
 Behind the scenes, it involves:
  * Re-implementing OpenWrt's overlay filesystem initialization code using shell scripts.
  * Creating an extremely lightweight Linux container using `unshare`, `nsenter`, and `dumb-init`.
- * Using the container to run `opkg` within the newly-flashed installation.
+ * Using the container to run the installed package manager within the newly-flashed installation.

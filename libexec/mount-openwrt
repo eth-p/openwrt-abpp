@@ -45,7 +45,7 @@ LO_FS=f2fs
 
 # Create the initial filesystem if one doesn't exist.
 if [ "$(dd if="$LO_DEVICE" bs=1024 count=2 2>/dev/null | tr -d '\0' | wc -c)" -eq 0 ]; then
-    "mkfs.${LO_FS}" "$LO_DEVICE"
+    "mkfs.${LO_FS}" -t 0 "$LO_DEVICE"
 fi
 
 # Mount the ROM (immutable) filesystem.

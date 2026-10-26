@@ -14,9 +14,11 @@
 # Depends on packages:
 #  * wget (built-in)
 #  * usign (built-in)
+#  * gnupg2 (automatically installed when required for APK-based releases)
 # ---------------------------------------------------------------------------------------------------------------------
 set -euo pipefail
 SCRIPTS="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+source "$SCRIPTS/lib/packages.sh"
 
 VERSION="${1:-}"
 OUTDIR="${2:-}"
@@ -36,7 +38,9 @@ DOWNLOAD_ROOT_URL="${DOWNLOAD_URL_BASE}/openwrt-${VERSION}-${ARCH}-generic-squas
 DOWNLOAD_KERNEL_URL="${DOWNLOAD_URL_BASE}/openwrt-${VERSION}-${ARCH}-generic-kernel.bin"
 DOWNLOAD_CHECKSUM_URL="${DOWNLOAD_URL_BASE}/sha256sums"
 DOWNLOAD_CHECKSUM_SIG_URL="${DOWNLOAD_URL_BASE}/sha256sums.sig"
-DOWNLOAD_URL_BASE="https://downloads.openwrt.org/releases/${VERSION}/targets/${BOARD}/"
+DOWNLOAD_CHECKSUM_ASC_URL="${DOWNLOAD_URL_BASE}/sha256sums.asc"
+OPENWRT_GPG_KEY_URL="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x8A8BC12F46B836C0F9CDB36F1D53D1877742E911"
+OPENWRT_GPG_KEY_FINGERPRINT="8A8BC12F46B836C0F9CDB36F1D53D1877742E911"
 
 # Create a download folder.
 temp="$(mktemp -d)"
@@ -44,27 +48,98 @@ trap 'rm -rf "$temp"' EXIT
 
 # Download the checksums.
 echo "Downloading checksums..." 1>&2
-if ! wget -q -P "$temp" \
-    "$DOWNLOAD_CHECKSUM_URL" \
-    "$DOWNLOAD_CHECKSUM_SIG_URL"
-then
+if ! wget -q -P "$temp" "$DOWNLOAD_CHECKSUM_URL"; then
     echo "Failed to download checksums." 1>&2
     echo "download failed"
     exit 2
 fi
 
-# Verify the signature of the checksums.
-KEYS_DIR="/etc/opkg/keys"
+# Verify the release checksum using the signature format supported by the
+# installed package-manager generation.
+case "$(abpp_packages_manager)" in
+apk)
+    signature_type="gpg"
+    signature_url="$DOWNLOAD_CHECKSUM_ASC_URL"
+    ;;
+opkg)
+    signature_type="usign"
+    signature_url="$DOWNLOAD_CHECKSUM_SIG_URL"
+    ;;
+esac
+if ! wget -q -P "$temp" "$signature_url"; then
+    echo "Failed to download checksum signature." 1>&2
+    echo "download failed"
+    exit 2
+fi
 
 echo "Verifying checksum signatures..." 1>&2
 if [ "${REALLY_BAD_IDEA:-}" != "iknow" ]; then
-    if ! usign -q -V -m "$temp/sha256sums" -P "$KEYS_DIR"; then
-        echo "Checksum signature check failed!" 1>&2
-        echo "" 1>&2
-        echo "If you REALLY think you want to proceed, set the" 1>&2
-        echo "REALLY_BAD_IDEA='iknow' environment variable and try again." 1>&2
-        echo "signature check failed"
-        exit 3
+    if [ "$signature_type" = gpg ]; then
+        if ! command -v gpg >/dev/null 2>&1; then
+            echo "Installing GnuPG to verify the APK-based OpenWrt release..." 1>&2
+            if ! apk update || ! apk add gnupg2; then
+                echo "error: failed to install GnuPG; cannot verify the release signature." 1>&2
+                exit 1
+            fi
+            if ! command -v gpg >/dev/null 2>&1; then
+                echo "error: GnuPG installation completed but gpg is unavailable." 1>&2
+                exit 127
+            fi
+        fi
+
+        key_file="$temp/openwrt-release-key.asc"
+        if ! wget -q -O "$key_file" "$OPENWRT_GPG_KEY_URL"; then
+            echo "error: failed to download the OpenWrt release signing key." 1>&2
+            exit 2
+        fi
+        gpg_home="$temp/gnupg"
+        mkdir -m 700 "$gpg_home"
+        import_status="$temp/gpg-import.status"
+        if ! GNUPGHOME="$gpg_home" gpg --batch --status-fd 1 \
+            --import "$key_file" >"$import_status"
+        then
+            echo "error: failed to import the downloaded OpenWrt signing key." 1>&2
+            exit 3
+        fi
+
+        # The keyserver is only a transport; trust only the pinned fingerprint.
+        fingerprints="$(
+            awk '$1 == "[GNUPG:]" && $2 == "IMPORT_OK" { print toupper($4) }' \
+                "$import_status"
+        )"
+        if ! printf '%s\n' "$fingerprints" | grep -F -x -q "$OPENWRT_GPG_KEY_FINGERPRINT"; then
+            echo "error: downloaded OpenWrt signing key has an unexpected fingerprint." 1>&2
+            if [ -n "$fingerprints" ]; then
+                echo "Fingerprints found: $(printf '%s\n' "$fingerprints" | tr '\n' ' ')" 1>&2
+            fi
+            exit 3
+        fi
+        # The pinned fingerprint establishes this key's identity; trust it only
+        # in this temporary keyring so GnuPG can verify its signature cleanly.
+        ownertrust_file="$temp/openwrt-release-ownertrust.txt"
+        printf '%s:6:\n' "$OPENWRT_GPG_KEY_FINGERPRINT" >"$ownertrust_file"
+        if ! GNUPGHOME="$gpg_home" gpg --batch --import-ownertrust "$ownertrust_file"; then
+            echo "error: failed to trust the pinned OpenWrt signing key." 1>&2
+            exit 3
+        fi
+        if ! GNUPGHOME="$gpg_home" gpg --batch --quiet \
+            --verify "$temp/sha256sums.asc" "$temp/sha256sums"
+        then
+            echo "Checksum signature check failed!" 1>&2
+            echo "signature check failed"
+            exit 3
+        fi
+    else
+        KEYS_DIR="/etc/opkg/keys"
+        if ! [ -d "$KEYS_DIR" ]; then
+            echo "error: opkg signing keys are missing from $KEYS_DIR." 1>&2
+            exit 127
+        fi
+        if ! usign -q -V -m "$temp/sha256sums" -P "$KEYS_DIR"; then
+            echo "Checksum signature check failed!" 1>&2
+            echo "signature check failed"
+            exit 3
+        fi
     fi
 fi
 

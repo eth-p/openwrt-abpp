@@ -25,5 +25,5 @@ fi
 
 if [ -n "${ABPP_TEMPDIR:-}" ] && [ -d "${ABPP_TEMPDIR}" ]; then
     echo "Removing temporary directory..."
-    rmdir "$ABPP_TEMPDIR"
+    rm -rf "$ABPP_TEMPDIR"
 fi

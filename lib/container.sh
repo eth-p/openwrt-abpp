@@ -55,14 +55,15 @@ abpp_container_alive() {
 
     local mount="$1"
     local rundir="$(abpp_container_get_rundir "$mount")"
-
     # Return error if the container is not alive.
     [ -d "$rundir" ]          || return 1
     [ -f "$rundir/host.pid" ] || return 1
     kill -0 "$(cat "$rundir/host.pid")" &>/dev/null || return 1
 
     # The container is probably alive. 
-    return 0
+    # A live unshare process is not enough: the target root may have been
+    # unmounted or removed while the process remained. Verify namespace entry.
+    __abpp_container_enter "$mount" /bin/ash -c : >/dev/null 2>&1
 }
 
 # Function: abpp_container_sessions
@@ -116,6 +117,29 @@ abpp_container_create() {
         return 0
     fi
 
+    # Do not replace namespace files while an old unshare process still owns
+    # them. The caller must destroy this unusable container first.
+    if [ -f "$rundir/host.pid" ]; then
+        local host_pid
+        host_pid="$(cat "$rundir/host.pid")"
+        if kill -0 "$host_pid" 2>/dev/null; then
+            echo "error: container process $host_pid is running but its namespace is unusable." 1>&2
+            echo "Destroy the stale container before creating it again." 1>&2
+            return 1
+        fi
+    fi
+
+    # Remove namespace mountpoints left by an interrupted container startup.
+    # A namespace file may still be a mountpoint even after its host process
+    # has exited, which prevents the files from being recreated below.
+    if [ -d "$rundir/ns" ]; then
+        local ns
+        for ns in mnt pid ipc cgroup; do
+            umount "$rundir/ns/$ns" 2>/dev/null || true
+            rm -f "$rundir/ns/$ns"
+        done
+    fi
+
     # Create the directory structure.
     mkdir -p "$rundir" "$rundir/ns" "$rundir/sessions"
     touch "$rundir/host.pid" \
@@ -125,16 +149,15 @@ abpp_container_create() {
         "$rundir/ns/cgroup"
 
     # Create a target for pivot_root.
+    local created_parent=false
     if ! [ -d "$mount/.parent" ]; then
         mkdir -p "$mount/.parent"
+        created_parent=true
     fi
+    mkdir -p "$mount/proc" "$mount/dev"
 
-    # Create the namespaces and use dumb-init as the init process.
-    #  * Create namespaces.
-    #  * Mount procfs to /proc under the container root.
-    #  * Pivot mount namespace's root to the container root.
-    #  * Sleep forever.
-    #  * Record the PID of unshare, which will forward signals.
+    # Keep the namespace init alive with a host-root sleep process; the target
+    # root may not contain a sleep executable.
     unshare \
         --fork \
         --mount="$rundir/ns/mnt" \
@@ -142,17 +165,41 @@ abpp_container_create() {
         --ipc="$rundir/ns/ipc" \
         --cgroup="$rundir/ns/cgroup" \
         /usr/sbin/dumb-init /bin/ash -c \
-        "mount -t proc procfs '$mount/proc' \
-            && pivot_root '$mount' '$mount/.parent' \
-            && while true; do sleep 1; done" &
+        "set -e
+            sleep 2147483 &
+            keeper=\$!
+            trap 'kill \"\$keeper\" 2>/dev/null || true' EXIT
+            trap 'exit 0' TERM INT
+            mount --make-rprivate /
+            mount --bind '$mount' '$mount'
+            mount --bind /dev '$mount/dev'
+            mount -t proc procfs '$mount/proc'
+            cd '$mount'
+            pivot_root . .parent
+            cd /
+            wait \"\$keeper\"" &
 
     echo "$!" > "$rundir/host.pid"
 
     # Wait until it's possible to enter the container.
     while true; do
         sleep 1
-        if __abpp_container_enter "$mount" /bin/true; then
+        if __abpp_container_enter "$mount" /bin/ash -c :; then
+            echo "Container ready."
             break
+        fi
+        if ! kill -0 "$(cat "$rundir/host.pid")" 2>/dev/null; then
+            echo "error: container process exited while starting." 1>&2
+            for ns in mnt pid ipc cgroup; do
+                umount "$rundir/ns/$ns" 2>/dev/null || true
+                rm -f "$rundir/ns/$ns"
+            done
+            rm -f "$rundir/host.pid"
+            rmdir "$rundir/ns" "$rundir/sessions" "$rundir" 2>/dev/null || true
+            if [ "$created_parent" = true ]; then
+                rmdir "$mount/.parent" 2>/dev/null || true
+            fi
+            return 1
         fi
     done
 }
@@ -173,14 +220,14 @@ abpp_container_destroy() {
 
     # Kill the init process if it's alive.
     if [ -f "$rundir/host.pid" ]; then
-        __abpp_container_enter "$mount" /bin/kill -TERM 1 || true
+        __abpp_container_enter "$mount" /bin/ash -c 'kill -TERM 1' || true
         kill -INT "$(cat "$rundir/host.pid")" || true
     fi
 
     # Wait until it's no longer possible to enter the container.
     while true; do
         sleep 1
-        if ! __abpp_container_enter "$mount" /bin/true 2>/dev/null; then
+        if ! __abpp_container_enter "$mount" /bin/ash -c : 2>/dev/null; then
             break
         fi
     done
@@ -260,9 +307,9 @@ abpp_container_enter() {
 
     # Enter the container's namespaces.
     local status=0
-    if ! __abpp_container_enter "$@"; then
+    __abpp_container_enter "$@" || {
         status=$?
-    fi
+    }
 
     # Remove this process from the session list.
     rm "$rundir/sessions/$$"

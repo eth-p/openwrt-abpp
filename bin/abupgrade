@@ -10,7 +10,6 @@
 # This will execute the scripts under the stages/*.d/* directory in sort order.
 # If any script fails, this script will exit.
 # If an upgrade is left incomplete, you may re-run this script to resume it.
-# ---------------------------------------------------------------------------------------------------------------------
 set -euo pipefail
 SCRIPTS="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 source "$SCRIPTS/config"
@@ -132,21 +131,27 @@ run_stage() {
     eval "$(sed 's/^/export /' "$ABPP_VARSFILE")"
 
     # Run the script.
-    {
-        echo ""
-        abpp_print_stage "$(stage_name "$stage_rel")"
-        if [ "$(head -n1 "$stage_file")" = "#=abpp" ]; then
-            ({ source "$stage_file"; })
+    echo ""
+    abpp_print_stage "$(stage_name "$stage_rel")"
+    if [ "$(head -n1 "$stage_file")" = "#=abpp" ]; then
+        if ({ source "$stage_file"; }); then
+            :
         else
-            "$stage_file"
+            stage_status=$?
+            abpp_print_error \
+                "Upgrade step failed." \
+                "See above for details."
+            return "$stage_status"
         fi
-    } || {
-        echo ""
+    elif "$stage_file"; then
+        :
+    else
+        stage_status=$?
         abpp_print_error \
             "Upgrade step failed." \
             "See above for details."
-        return 1
-    }
+        return "$stage_status"
+    fi
 }
 
 while [ -n "$next_stage" ]; do

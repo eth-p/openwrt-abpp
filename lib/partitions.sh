@@ -66,7 +66,7 @@ abpp_partitions_scan() {
         return 20
     fi
 
-    OTHER_PARTITION="$BOOT_DEVICE$other_num"
+    OTHER_PARTITION="$(abpp_partitions_diskdev_to_partdev "$BOOT_DEVICE" "$other_num")"
 
     # Get the EFI partition.
     EFI_PARTITION="$(
@@ -83,10 +83,23 @@ abpp_partitions_scan() {
 #   $1 -- The `/dev/...` device path.
 abpp_partitions_dev_to_diskdev() {
     printf "%s" "$1" \
-        | sed 's/[0-9]\{1,\}$//'
+        | sed 's/p\{0,1\}[0-9]\{1,\}$//'
 }
 
-# Function: abpp_partitions_dev_to_diskdev
+# Function: abpp_partitions_diskdev_to_partdev
+# Prints the partition device path for the given disk path and partition number.
+#
+# Parameters:
+#   $1 -- The `/dev/...` disk path.
+#   $2 -- The partition number.
+abpp_partitions_diskdev_to_partdev() {
+    case "$1" in
+        *[0-9]) printf "%sp%s\n" "$1" "$2" ;;
+        *)      printf "%s%s\n" "$1" "$2" ;;
+    esac
+}
+
+# Function: abpp_partitions_dev_to_partnum
 # Prints the partition number for the given device path.
 #
 # Parameters:
